@@ -1,11 +1,10 @@
 import { Request, Response } from "express"
 import prisma from "../../lib/db";
 import { hashSync, compareSync } from "bcrypt";
-import jwt from "jsonwebtoken";
-import { SECRET_KEY } from "../env";
-const tokenExpiration = '30d';
+
+
 export const signup = async (req: Request, res: Response) => {
-    const { name, email, password } = req.body;
+    const { name, username, email, password, phone, address ,image} = req.body;
     try {
         const existeUser = await prisma.user.findUnique({
             where: {
@@ -21,8 +20,12 @@ export const signup = async (req: Request, res: Response) => {
         const newUser = await prisma.user.create({
             data: {
                 name: name,
+                username: username,
                 email: email,
-                password: hashSync(password, 10)
+                password: hashSync(password, 10),
+                phone: phone,
+                address: address,
+                image: image
             }
         })
         if (!newUser) {
@@ -32,15 +35,10 @@ export const signup = async (req: Request, res: Response) => {
             })
         }
 
-        const token = jwt.sign({ id: newUser.id, name: newUser.name, email: newUser.email }, SECRET_KEY as string, { expiresIn: tokenExpiration })
-        const { iat, exp } = jwt.decode(token) as { iat: number; exp: number };
         return res.status(201).json({
             ok: true,
             message: "User registered successfully",
             user: newUser,
-            token,
-            iat: new Date(iat * 1000),
-            exp: new Date(exp * 1000) 
         })
     } catch (error) {
         return res.status(500).json({
@@ -51,48 +49,33 @@ export const signup = async (req: Request, res: Response) => {
 }
 
 
-
 export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     try {
-        const existeUser = await prisma.user.findUnique({
-            where: {
-                email: email
-            }
-        })
-        if (!existeUser) {
-            return res.status(404).json({
-                ok: false,
-                message: "User already exists"
-            })
-        }
         const user = await prisma.user.findUnique({
             where: {
                 email: email
             }
         })
         if (!user) {
-            return res.status(404).json({
+            return res.status(400).json({
                 ok: false,
-                message: "User already exists"
+                message: "User Not Found"
             })
         }
+
         const passwordValid = compareSync(password, user?.password as string)
         if (!passwordValid) {
             return res.status(404).json({
                 ok: false,
-                message: "Password incorrect"
+                message: "Incorrect password",
             })
         }
-        const token = jwt.sign({ id: user.id, name: user.name, email: user.email }, SECRET_KEY as string, { expiresIn: tokenExpiration })
-        const { iat, exp } = jwt.decode(token) as { iat: number; exp: number };
+
         return res.status(200).json({
             ok: true,
-            message: "User registered successfully",
+            message: "User logged in successfully",
             user: user,
-            token,
-            iat: new Date(iat * 1000), 
-            exp: new Date(exp * 1000) 
         })
     } catch (error) {
         return res.status(500).json({
